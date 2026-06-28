@@ -1,652 +1,198 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Ultimate Classroom Pro - Always-on Cam Edition</title>
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>एवी क्लासरूम - लाइव सुरक्षित कक्षा</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: sans-serif; background: #111; overflow: hidden; height: 100vh; display: flex; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #1e1e24; color: #fff; height: 100vh; overflow: hidden; }
         
-        /* Main Board Container */
-        #canvas-container {
-            position: relative;
-            flex: 1;
-            height: 100vh;
-            background-color: #1a3a2a; 
-            background-image: radial-gradient(#224d38 15%, transparent 20%);
-            background-size: 4px 4px;
-            overflow: hidden;
-            transition: all 0.3s ease;
-        }
-
-        #zoom-wrapper {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            transform-origin: 0 0; pointer-events: none; z-index: 5;
-        }
-        #media-layer { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-        #media-layer img { max-width: 100%; max-height: 100%; object-fit: contain; }
-        #drawing-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; touch-action: none; }
-
-        /* FLOATING ALWAYS-ON VIDEO GRID */
-        #video-grid { 
-            position: absolute; top: 15px; right: 15px; width: 120px;
-            display: flex; flex-direction: column; gap: 6px; z-index: 80; 
-            pointer-events: auto;
-        }
-        .video-box {
-            width: 100%; height: 95px; background: #000;
-            border: 2px solid #ffd700; border-radius: 6px; overflow: hidden; position: relative;
-            box-shadow: 0px 4px 10px rgba(0,0,0,0.5);
-        }
-        .video-box video { width: 100%; height: 100%; object-fit: cover; }
-        .video-label { position: absolute; bottom: 2px; left: 2px; background: rgba(0,0,0,0.6); color: white; font-size: 8px; padding: 1px 3px; border-radius: 2px; }
-        .mirror { transform: scaleX(-1); }
-        .cam-toggle-overlay {
-            position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.7);
-            color: white; border: none; padding: 2px 4px; font-size: 8px; border-radius: 2px; cursor: pointer;
-        }
-
-        /* 🛠️ LEFT TOOLBAR (स्क्रॉलिंग और हाइड बटन की समस्या को सुधारा गया) */
-        #left-toolbar {
-            width: 85px; 
-            height: 100vh; 
-            background: #1e1e1e; 
-            border-right: 3px solid #333;
-            display: flex; 
-            flex-direction: column; 
-            padding: 12px 4px; 
-            gap: 10px; 
-            z-index: 50;
-            overflow-y: auto; /* बटन्स छुपने पर स्क्रॉल बार एक्टिवेट होगा */
-            transition: all 0.3s ease;
-        }
-        #left-toolbar.hidden { width: 0px; padding: 0px; border: none; overflow: hidden; }
-
-        /* RIGHT SIDEBAR */
-        #right-sidebar {
-            width: 130px; height: 100vh; background: #1e1e1e; border-left: 3px solid #333;
-            display: flex; flex-direction: column; padding: 120px 4px 8px 4px; gap: 8px; z-index: 50; align-items: center;
-            overflow-y: auto; transition: all 0.3s ease;
-        }
-        #right-sidebar.hidden { width: 0px; padding: 0px; border: none; overflow: hidden; }
-
-        /* LIVE CHAT MODULE STYLING */
-        #chat-container {
-            width: 100%; background: #222; border: 1px solid #444; border-radius: 6px;
-            display: flex; flex-direction: column; height: 140px; margin-top: 4px; flex-shrink: 0;
-            transition: all 0.2s ease;
-        }
-        #chat-container.chat-collapsed { height: 0px; border: none; overflow: hidden; margin: 0; }
+        #gateway-screen { position: fixed; top:0; left:0; width:100%; height:100%; background:#111215; display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:10000; }
+        .login-box { background:#1e1e24; padding:30px; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,0.5); text-align:center; max-width:360px; width:90%; }
+        .login-box h2 { margin-bottom:20px; color:#4caf50; }
+        .login-box input { width:100%; padding:12px; margin-bottom:15px; border:none; border-radius:6px; background:#2a2a35; color:#fff; font-size:16px; text-align:center; }
+        .login-box button { width:100%; padding:12px; border:none; border-radius:6px; background:#4caf50; color:#fff; font-size:16px; font-weight:bold; cursor:pointer; }
         
-        #chat-messages { flex: 1; overflow-y: auto; padding: 4px; font-size: 9px; color: #fff; display: flex; flex-direction: column; gap: 4px; }
-        .msg { background: #333; padding: 3px 5px; border-radius: 4px; word-break: break-all; }
-        .msg.teacher-msg { background: #1b5e20; border-left: 2px solid #66bb6a; }
-        .msg.student-msg { background: #0d47a1; border-left: 2px solid #42a5f5; }
-        #chat-input-box { display: flex; border-top: 1px solid #444; }
-        #chat-input { flex: 1; background: #111; color: white; border: none; padding: 4px; font-size: 9px; outline: none; }
-        #chat-send { background: #ffd700; color: #111; border: none; padding: 4px 6px; font-size: 9px; font-weight: bold; cursor: pointer; }
-
-        /* Floating Master Trigger Buttons */
-        .floating-trigger {
-            position: absolute; bottom: 15px; z-index: 60; background: #ffd700; color: #111;
-            border: 2px solid #fff; border-radius: 50%; width: 40px; height: 40px; font-size: 16px;
-            display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0px 4px 10px rgba(0,0,0,0.5);
-        }
-        #trigger-left { left: 15px; display: none; }
-        #trigger-right { right: 15px; display: none; }
-
-        /* UI Buttons General */
-        button, label.upload-btn {
-            background: #2a2a2a; color: #ddd; border: 1px solid #444; padding: 7px 3px;
-            border-radius: 5px; font-weight: bold; font-size: 10px; cursor: pointer; text-align: center; width: 100%; flex-shrink: 0;
-        }
-        button.active { border-color: #ffd700; background: #3a3a3a; color: #ffd700; }
-        button#clear { background: #b22222; color: white; }
+        #classroom-interface { display: none; height: 100vh; flex-direction: column; }
         
-        /* Utility Special Buttons */
-        .toggle-utility-btn { background: #37474f; color: #fff; border-color: #546e7a; font-size: 9px; }
-        .minimize-btn { background: #424242; color: #ffeb3b; margin-top: auto; width: 100%; }
+        .toolbar { background: #2a2a35; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #3e3e4f; }
+        .toolbar h1 { font-size: 20px; color: #4caf50; }
+        .btn-group { display: flex; gap: 10px; }
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; color: #fff; background: #444454; }
+        .btn-danger { background: #f44336; }
+        .btn-success { background: #4caf50; }
 
-        .pdf-nav-box { display: flex; gap: 3px; width: 100%; }
-        .pdf-nav-box button { padding: 6px 2px; font-size: 9px; }
-        label.pdf-upload-btn { background: #4a148c; border-color: #7c43bd; color: white; }
-        #page-num-indicator { color: #ffd700; font-size: 9px; font-weight: bold; text-align: center; margin-top: -2px; }
-
-        button#record-btn { background: #d32f2f; color: white; font-size: 11px; padding: 9px 2px; font-weight: bold; border: 1px solid #ff6666; }
-        button#record-btn.recording { background: #2e7d32; border-color: #66bb6a; }
-        button#lock-btn { background: #ff9800; color: #111; }
-        .web-input { background: #2a2a2a; color: white; border: 1px solid #444; padding: 5px; border-radius: 4px; font-size: 10px; width: 100%; text-align: center; flex-shrink: 0; }
-
-        .color-picker { display: flex; flex-direction: column; gap: 6px; align-items: center; background: #2a2a2a; padding: 5px 0; border-radius: 6px; border: 1px solid #444; width: 100%; }
-        .color-dot { width: 20px; height: 20px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
-        .color-dot.selected { border-color: white; transform: scale(1.1); }
-
-        #role-selector {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 100;
-            background: rgba(17,17,17,0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 15px;
-        }
-        #role-selector h2 { color: white; }
-        #role-selector button { padding: 12px 24px; font-size: 1rem; width: 180px; }
-        #lock-indicator {
-            position: absolute; top: 15px; left: 100px; z-index: 35;
-            background: rgba(178,34,34,0.9); color: white; padding: 5px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; display: none;
-        }
+        .main-container { display: flex; flex: 1; height: calc(100vh - 60px); overflow: hidden; }
+        .video-sidebar { width: 300px; background: #141419; padding: 15px; display: flex; flex-direction: column; gap: 15px; border-right: 2px solid #2a2a35; }
+        .video-box { background: #222; border-radius: 10px; overflow: hidden; position: relative; height: 200px; border: 2px solid #333; }
+        video { width: 100%; height: 100%; object-fit: cover; background: #000; }
+        .video-label { position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.6); padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+        
+        .board-area { flex: 1; background: #fff; position: relative; display: flex; justify-content: center; align-items: center; }
+        canvas { background: #fff; width: 100%; height: 100%; cursor: crosshair; }
     </style>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/simple-peer/9.11.1/simplepeer.min.js"></script>
 </head>
 <body>
 
-    <div id="lock-indicator">🔒 Locked by Teacher</div>
-
-    <div id="trigger-left" class="floating-trigger" onclick="toggleLeftToolbar(false)">🛠️</div>
-    <div id="trigger-right" class="floating-trigger" onclick="toggleRightSidebar(false)">🎬</div>
-
-    <div id="video-grid">
-        <div class="video-box" id="local-box">
-            <video id="local-video" autoplay playsinline muted class="mirror"></video>
-            <button class="cam-toggle-overlay" onclick="toggleLocalCamera()">📷 Cam</button>
-            <div class="video-label">You</div>
+    <div id="gateway-screen">
+        <div class="login-box">
+            <h2>एवी क्लासरूम</h2>
+            <p style="margin-bottom: 15px; color: #aaa;">कक्षा में शामिल होने के लिए पासवर्ड दर्ज करें</p>
+            <input type="password" id="classroom-password" placeholder="पासवर्ड यहाँ लिखें">
+            <button onclick="enterClassroom()">प्रवेश करें</button>
+            <p id="error-msg" style="color: #f44336; margin-top: 10px; font-size: 14px;"></p>
         </div>
     </div>
 
-    <div id="role-selector">
-        <h2>Select Access Mode</h2>
-        <button onclick="checkAccessGateway('teacher')" style="background: #ffd700; color: #111;">Host as Teacher</button>
-        <button onclick="checkAccessGateway('student')">Join as Student</button>
-    </div>
-
-    <div id="left-toolbar">
-        <button id="btn-chalk" class="active" onclick="setTipStyle('chalk')">🖍️ Chalk</button>
-        <button id="btn-pen" onclick="setTipStyle('pen')">✒️ Pen</button>
-        
-        <div class="color-picker">
-            <div class="color-dot selected" style="background: #ffffff;" onclick="changeColor('#ffffff', this)"></div>
-            <div class="color-dot" style="background: #ffeb3b;" onclick="changeColor('#ffeb3b', this)"></div>
-            <div class="color-dot" style="background: #00e5ff;" onclick="changeColor('#00e5ff', this)"></div>
-            <div class="color-dot" style="background: #ff5252;" onclick="changeColor('#ff5252', this)"></div>
-        </div>
-        
-        <button id="btn-erase" onclick="setMode('erase')">🧽 Eraser</button>
-        <button id="clear" onclick="clearCanvas(true)">🗑️ Wash</button>
-
-        <div id="pdf-teacher-controls" style="display: none; flex-direction: column; gap: 6px; border-top: 1px solid #444; padding-top: 8px; width: 100%;">
-            <label class="upload-btn pdf-upload-btn">
-                📄 Add PDF
-                <input type="file" id="pdf-loader" accept=".pdf" onchange="loadPDF(event)" style="display:none;">
-            </label>
-            <div class="pdf-nav-box">
-                <button onclick="prevPage()">◀️ Prev</button>
-                <button onclick="nextPage()">Next ▶️</button>
-            </div>
-            <div id="page-num-indicator"></div>
-        </div>
-
-        <button class="minimize-btn" onclick="toggleLeftToolbar(true)">🔄 Hide</button>
-    </div>
-
-    <div id="canvas-container">
-        <div id="zoom-wrapper">
-            <div id="media-layer"></div>
-        </div>
-        <canvas id="drawing-layer"></canvas>
-    </div>
-
-    <div id="right-sidebar">
-        <button class="toggle-utility-btn" onclick="toggleChatSection()">💬 Toggle Chat</button>
-
-        <div id="chat-container">
-            <div id="chat-messages"></div>
-            <div id="chat-input-box">
-                <input type="text" id="chat-input" placeholder="Chat here...">
-                <button id="chat-send" onclick="sendChatMessage()">Send</button>
+    <div id="classroom-interface">
+        <div class="toolbar">
+            <h1>🏫 AV-Classroom (Live)</h1>
+            <div class="btn-group">
+                <button class="btn btn-success" id="share-btn" onclick="startCall()">कैमरा चालू करें</button>
+                <button class="btn" onclick="clearCanvas()">बोर्ड साफ करें</button>
+                <button class="btn btn-danger" onclick="location.reload()">क्लास छोड़ें</button>
             </div>
         </div>
 
-        <button class="toggle-utility-btn" onclick="toggleRightSidebar(true)">🎬 Full Screen</button>
+        <div class="main-container">
+            <div class="video-sidebar">
+                <div class="video-box">
+                    <video id="localVideo" autoplay playsinline muted></video>
+                    <div class="video-label">आपकी लाइव स्ट्रीम</div>
+                </div>
+                <div class="video-box">
+                    <video id="remoteVideo" autoplay playsinline></video>
+                    <div class="video-label">सामने वाले की स्ट्रीम</div>
+                </div>
+            </div>
 
-        <button id="record-btn" onclick="toggleRecording()" style="display: none;">🔴 Record</button>
-        
-        <label id="ppt-loader-lbl" class="upload-btn" style="display: none;">
-            📂 Image
-            <input type="file" id="file-loader" accept="image/*" onchange="loadMedia(event)" style="display:none;">
-        </label>
-        
-        <button id="lock-btn" onclick="toggleStudentWriting()" style="display: none;">🔓 Lock: NO</button>
-        
-        <button onclick="adjustZoom(0.15)">➕ Zoom In</button>
-        <button onclick="adjustZoom(-0.15)">➖ Zoom Out</button>
-        <button onclick="resetZoom()">🔄 Reset</button>
-        
-        <input type="text" id="web-url" class="web-input" placeholder="URL...">
-        <button onclick="launchWeb()">🌐 Go Web</button>
+            <div class="board-area">
+                <canvas id="whiteboard"></canvas>
+            </div>
+        </div>
     </div>
 
     <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-
-        const socket = io();
-        const canvas = document.getElementById('drawing-layer');
+        // आपकी एकदम नई लाइव लिंक यहाँ ऑटो-कनेक्ट के लिए फिक्स कर दी गई है
+        const socket = io('https://av-classroom-ye0v.onrender.com');
+        
+        let localStream;
+        let peer;
+        const canvas = document.getElementById('whiteboard');
         const ctx = canvas.getContext('2d');
         let drawing = false;
-        
-        let toolMode = 'write';     
-        let tipStyle = 'chalk';     
-        let activeColor = '#ffffff'; 
-        
-        let userRole = null;
-        let isBoardLockedByTeacher = false;
-        let isCamOn = true;
-        let currentZoomScale = 1;
-
-        let pdfDoc = null;
-        let pageNum = 1;
-
-        // 🔑 सुरक्षा पासवर्ड मैनेजमेंट
-        let currentStudentPassword = "student2026"; 
-        socket.on('init-password', (serverPass) => {
-            currentStudentPassword = serverPass;
-        });
-
-        // पासवर्ड सुरक्षा गेटवे
-        function checkAccessGateway(clickedRole) {
-            if (clickedRole === 'teacher') {
-                const pin = prompt("टीचर सीक्रेट पिन (PIN) दर्ज करें:");
-                if (pin === "1234") {
-                    selectRole('teacher');
-                } else {
-                    alert("गलत पिन! एक्सेस अस्वीकृत।");
-                }
-            } else if (clickedRole === 'student') {
-                const pass = prompt("क्लास स्टूडेंट पासवर्ड दर्ज करें:");
-                if (pass === currentStudentPassword) {
-                    selectRole('student');
-                } else {
-                    alert("गलत पासवर्ड! एक्सेस अस्वीकृत।");
-                }
-            }
-        }
-
-        // --- VISIBILITY TOGGLE CONTROLLERS ---
-        function toggleLeftToolbar(hide) {
-            document.getElementById('left-toolbar').style.display = hide ? 'none' : 'flex';
-            document.getElementById('trigger-left').style.display = hide ? 'flex' : 'none';
-            setTimeout(resizeCanvas, 350);
-        }
-
-        function toggleRightSidebar(hide) {
-            document.getElementById('right-sidebar').classList.toggle('hidden', hide);
-            document.getElementById('trigger-right').style.display = hide ? 'flex' : 'none';
-            setTimeout(resizeCanvas, 350);
-        }
-
-        function toggleChatSection() {
-            document.getElementById('chat-container').classList.toggle('chat-collapsed');
-        }
 
         function resizeCanvas() {
             canvas.width = canvas.parentElement.clientWidth;
             canvas.height = canvas.parentElement.clientHeight;
-            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#000000';
         }
-        window.addEventListener('resize', () => { setTimeout(resizeCanvas, 200); });
-        setTimeout(resizeCanvas, 500);
+        window.addEventListener('resize', resizeCanvas);
 
-        function setTipStyle(style) {
-            toolMode = 'write'; tipStyle = style;
-            document.getElementById('btn-chalk').classList.toggle('active', style === 'chalk');
-            document.getElementById('btn-pen').classList.toggle('active', style === 'pen');
-            document.getElementById('btn-erase').classList.remove('active');
+        function enterClassroom() {
+            const passInput = document.getElementById('classroom-password').value;
+            socket.emit('verify-password', passInput, (response) => {
+                if (response.success) {
+                    document.getElementById('gateway-screen').style.display = 'none';
+                    document.getElementById('classroom-interface').style.display = 'flex';
+                    resizeCanvas();
+                    setupCamera();
+                } else {
+                    document.getElementById('error-msg').innerText = response.message;
+                }
+            });
         }
 
-        function setMode(mode) {
-            toolMode = mode;
-            if (mode === 'erase') {
-                document.getElementById('btn-erase').classList.add('active');
-                document.getElementById('btn-chalk').classList.remove('active');
-                document.getElementById('btn-pen').classList.remove('active');
+        async function setupCamera() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('localVideo').srcObject = localStream;
+            } catch (err) {
+                console.error("कैमरा एक्सेस एरर:", err);
+                alert("कृपया कैमरा और माइक की परमिशन Allow करें।");
             }
         }
 
-        function changeColor(hex, element) {
-            activeColor = hex;
-            if (toolMode === 'erase') setTipStyle(tipStyle); 
-            document.querySelectorAll('.color-dot').forEach(dot => dot.classList.remove('selected'));
-            element.classList.add('selected');
+        function startCall() {
+            peer = new SimplePeer({
+                initiator: true,
+                trickle: false,
+                stream: localStream
+            });
+
+            peer.on('signal', data => {
+                socket.emit('signal', { signal: data });
+            });
+
+            peer.on('stream', stream => {
+                document.getElementById('remoteVideo').srcObject = stream;
+            });
         }
 
-        function clearCanvas(isLocal) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            document.getElementById('media-layer').innerHTML = '';
-            document.getElementById('page-num-indicator').innerText = '';
-            pdfDoc = null;
-            resetZoom();
-            if(isLocal) {
-                socket.emit('clearBoard');
-                socket.emit('bg-sync', ''); 
+        socket.on('signal', data => {
+            if (!peer) {
+                peer = new SimplePeer({
+                    initiator: false,
+                    trickle: false,
+                    stream: localStream
+                });
+
+                peer.on('signal', signalData => {
+                    socket.emit('signal', { signal: signalData });
+                });
+
+                peer.on('stream', stream => {
+                    document.getElementById('remoteVideo').srcObject = stream;
+                });
             }
-        }
-        socket.on('clearBoard', () => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            document.getElementById('media-layer').innerHTML = '';
-            document.getElementById('page-num-indicator').innerText = '';
-            pdfDoc = null;
-            resetZoom();
+            peer.signal(data.signal);
         });
 
-        function toggleLocalCamera() {
-            if (!localStream) return;
-            isCamOn = !isCamOn;
-            localStream.getVideoTracks().forEach(track => track.enabled = isCamOn);
-        }
-
-        function adjustZoom(amount) {
-            currentZoomScale = Math.max(0.5, Math.min(4, currentZoomScale + amount));
-            applyZoomState(true);
-        }
-        function resetZoom() {
-            currentZoomScale = 1;
-            applyZoomState(true);
-        }
-        function applyZoomState(isLocal) {
-            document.getElementById('zoom-wrapper').style.transform = `scale(${currentZoomScale})`;
-            if (isLocal) socket.emit('zoom-sync', currentZoomScale);
-        }
-        socket.on('zoom-sync', (scale) => {
-            currentZoomScale = scale;
-            applyZoomState(false);
-        });
-
-        function launchWeb() {
-            let url = document.getElementById('web-url').value.trim();
-            if(!url) return alert("Type URL first!");
-            if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-            window.open(url, '_blank');
-        }
-
-        function toggleStudentWriting() {
-            const btn = document.getElementById('lock-btn');
-            if (btn.innerText.includes("NO")) {
-                btn.innerText = "🔒 Lock: YES";
-                socket.emit('toggle-lock', true);
-            } else {
-                btn.innerText = "🔓 Lock: NO";
-                socket.emit('toggle-lock', false);
-            }
-        }
-
-        socket.on('lock-state', (isLocked) => {
-            isBoardLockedByTeacher = isLocked;
-            if(userRole === 'student') {
-                document.getElementById('lock-indicator').style.display = isLocked ? 'block' : 'none';
-            }
-        });
-
-        function startDrawing(e) {
-            if (userRole === 'student' && isBoardLockedByTeacher) return; 
-            drawing = true;
-            ctx.beginPath();
-            const pos = getCoordinates(e);
-            ctx.moveTo(pos.x, pos.y);
-            socket.emit('drawing', { type: 'start', x: pos.x, y: pos.y, toolMode, tipStyle, color: activeColor });
-        }
+        canvas.addEventListener('mousedown', () => drawing = true);
+        canvas.addEventListener('mouseup', () => { drawing = false; ctx.beginPath(); });
+        canvas.addEventListener('mousemove', draw);
 
         function draw(e) {
-            if (!drawing || (userRole === 'student' && isBoardLockedByTeacher)) return;
-            e.preventDefault(); 
-            const pos = getCoordinates(e);
-            executeDraw(pos.x, pos.y, toolMode, tipStyle, activeColor);
-            socket.emit('drawing', { type: 'move', x: pos.x, y: pos.y, toolMode, tipStyle, color: activeColor });
+            if (!drawing) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+
+            socket.emit('draw', { x, y, drawing: true });
         }
 
-        function executeDraw(x, y, mode, style, colorHex) {
-            if (mode === 'write') {
-                ctx.globalCompositeOperation = 'source-over'; ctx.strokeStyle = colorHex; 
-                if (style === 'chalk') {
-                    ctx.lineWidth = 5; ctx.shadowBlur = 1; ctx.shadowColor = colorHex;
-                } else {
-                    ctx.lineWidth = 2.2; ctx.shadowBlur = 0;
-                }
-            } else {
-                ctx.globalCompositeOperation = 'destination-out'; ctx.lineWidth = 35; ctx.shadowBlur = 0;
-            }
-            ctx.lineTo(x, y); ctx.stroke();
-        }
-
-        function stopDrawing() { drawing = false; }
-
-        socket.on('drawing', (data) => {
-            if(data.type === 'start') {
-                ctx.beginPath(); ctx.moveTo(data.x, data.y);
-            } else if(data.type === 'move') {
-                executeDraw(data.x, data.y, data.toolMode, data.tipStyle, data.color);
-            }
+        socket.on('draw', (data) => {
+            ctx.lineTo(data.x, data.y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(data.x, data.y);
         });
 
-        function getCoordinates(e) {
-            const rect = canvas.getBoundingClientRect();
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            return { x: clientX - rect.left, y: clientY - rect.top };
-        }
-
-        canvas.addEventListener('touchstart', startDrawing, { passive: false });
-        canvas.addEventListener('touchmove', draw, { passive: false });
-        canvas.addEventListener('touchend', stopDrawing);
-        canvas.addEventListener('mousedown', startDrawing);
-        canvas.addEventListener('mousemove', draw);
-        canvas.addEventListener('mouseup', stopDrawing);
-
-        function loadMedia(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const imgData = e.target.result;
-                document.getElementById('media-layer').innerHTML = `<img src="${imgData}">`;
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                socket.emit('bg-sync', imgData);
-            }
-            reader.readAsDataURL(file);
-        }
-
-        function loadPDF(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const typedarray = new Uint8Array(e.target.result);
-                pdfjsLib.getDocument(typedarray).promise.then(pdf => {
-                    pdfDoc = pdf; pageNum = 1; renderPDFPage(pageNum);
-                });
-            };
-            reader.readAsArrayBuffer(file);
-        }
-
-        function renderPDFPage(num) {
-            if (!pdfDoc) return;
-            pdfDoc.getPage(num).then(page => {
-                const viewport = page.getViewport({ scale: 1.5 });
-                const pdfCanvas = document.createElement('canvas');
-                const pdfContext = pdfCanvas.getContext('2d');
-                pdfCanvas.height = viewport.height; pdfCanvas.width = viewport.width;
-
-                const renderContext = { canvasContext: pdfContext, viewport: viewport };
-                page.render(renderContext).promise.then(() => {
-                    const imgData = pdfCanvas.toDataURL('image/png');
-                    document.getElementById('media-layer').innerHTML = `<img src="${imgData}">`;
-                    document.getElementById('page-num-indicator').innerText = `Pg: ${num} / ${pdfDoc.numPages}`;
-                    ctx.clearRect(0, 0, canvas.width, canvas.height); 
-                    socket.emit('bg-sync', imgData);
-                });
+        socket.on('whiteboard-history', (history) => {
+            history.forEach(data => {
+                ctx.lineTo(data.x, data.y);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(data.x, data.y);
             });
+        });
+
+        function clearCanvas() {
+            socket.emit('clear-board');
         }
-
-        function prevPage() { if (pageNum <= 1) return; pageNum--; renderPDFPage(pageNum); }
-        function nextPage() { if (!pdfDoc || pageNum >= pdfDoc.numPages) return; pageNum++; renderPDFPage(pageNum); }
-
-        socket.on('bg-sync', (imgSrc) => {
-            if(imgSrc) {
-                document.getElementById('media-layer').innerHTML = `<img src="${imgSrc}">`;
-            } else {
-                document.getElementById('media-layer').innerHTML = '';
-            }
+        socket.on('clear-board', () => {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
         });
-
-        socket.on('history-sync', (history) => {
-            history.forEach(data => {
-                if(data.type === 'start') {
-                    ctx.beginPath(); ctx.moveTo(data.x, data.y);
-                } else if(data.type === 'move') {
-                    executeDraw(data.x, data.y, data.toolMode, data.tipStyle, data.color);
-                }
-            });
-        });
-
-        function sendChatMessage() {
-            const input = document.getElementById('chat-input');
-            const txt = input.value.trim();
-            if(!txt) return;
-            socket.emit('chat-message', { role: userRole, text: txt });
-            input.value = '';
-        }
-        
-        document.getElementById('chat-input').addEventListener('keypress', (e) => {
-            if(e.key === 'Enter') sendChatMessage();
-        });
-
-        socket.on('chat-message', (data) => {
-            const box = document.getElementById('chat-messages');
-            const msgEl = document.createElement('div');
-            msgEl.className = `msg ${data.role}-msg`;
-            msgEl.innerText = `${data.role === 'teacher' ? '💼 Teacher' : '🎓 Student'}: ${data.text}`;
-            box.appendChild(msgEl);
-            box.scrollTop = box.scrollHeight; 
-        });
-
-        let localStream;
-        let peers = {};
-        const config = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
-
-        async function selectRole(role) {
-            userRole = role;
-            document.getElementById('role-selector').style.display = 'none';
-            
-            if(userRole === 'teacher') {
-                document.getElementById('record-btn').style.display = 'block';
-                document.getElementById('ppt-loader-lbl').style.display = 'block';
-                document.getElementById('lock-btn').style.display = 'block';
-                document.getElementById('pdf-teacher-controls').style.display = 'flex';
-            }
-            
-            socket.emit('register-role', role);
-            setTimeout(resizeCanvas, 300);
-
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
-                document.getElementById('local-video').srcObject = localStream;
-                
-                socket.on('signal', async (data) => { handleSignaling(data.senderId, data.signal); });
-                if(userRole === 'student') socket.emit('signal', { targetId: 'all', signal: { type: 'join' } });
-            } catch(err) { 
-                console.log("Camera blocked or unavailable.", err);
-                document.getElementById('local-box').style.background = '#333';
-                document.getElementById('local-box').innerHTML = '<div style="color:#aaa; font-size:10px; text-align:center; margin-top:40px;">No Camera</div>';
-            }
-        }
-
-        async function handleSignaling(senderId, signal) {
-            if (signal.type === 'join') { initiatePeerConnection(senderId, true); return; }
-            let pc = peers[senderId];
-            if (!pc) pc = initiatePeerConnection(senderId, false);
-
-            if (signal.sdp) {
-                await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-                if (signal.sdp.type === 'offer') {
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-                    socket.emit('signal', { targetId: senderId, signal: { sdp: pc.localDescription } });
-                }
-            } else if (signal.candidate) {
-                try { await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)); } catch(e){}
-            }
-        }
-
-        function initiatePeerConnection(peerId, isInitiator) {
-            const pc = new RTCPeerConnection(config);
-            peers[peerId] = pc;
-            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-
-            pc.onicecandidate = event => {
-                if (event.candidate) socket.emit('signal', { targetId: peerId, signal: { candidate: event.candidate } });
-            };
-
-            pc.ontrack = event => {
-                if (document.getElementById(`vid-${peerId}`)) return;
-                const grid = document.getElementById('video-grid');
-                const box = document.createElement('div'); box.className = 'video-box'; box.id = `vid-${peerId}`;
-                const video = document.createElement('video'); video.srcObject = event.streams[0]; video.autoplay = true; video.playsInline = true;
-                const label = document.createElement('div'); label.className = 'video-label'; label.innerText = "Student";
-                box.appendChild(video); box.appendChild(label); grid.appendChild(box);
-            };
-
-            if (isInitiator) {
-                pc.createOffer().then(async offer => {
-                    await pc.setLocalDescription(offer);
-                    socket.emit('signal', { targetId: peerId, signal: { sdp: pc.localDescription } });
-                });
-            }
-            return pc;
-        }
-
-        socket.on('user-left', (peerId) => {
-            const box = document.getElementById(`vid-${peerId}`); if(box) box.remove();
-            if(peers[peerId]) { peers[peerId].close(); delete peers[peerId]; }
-        });
-
-        let mediaRecorder;
-        let recordedChunks = [];
-
-        async function toggleRecording() {
-            const recordBtn = document.getElementById('record-btn');
-            if (!mediaRecorder || mediaRecorder.state === "inactive") {
-                recordedChunks = [];
-                try {
-                    const masterCanvas = document.createElement('canvas');
-                    masterCanvas.width = canvas.width; masterCanvas.height = canvas.height;
-                    const ctxM = masterCanvas.getContext('2d');
-                    const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    const stream = masterCanvas.captureStream(25); 
-                    const audioTrack = audioStream.getAudioTracks()[0];
-                    if (audioTrack) stream.addTrack(audioTrack);
-
-                    function drawFrame() {
-                        if (mediaRecorder && mediaRecorder.state === "recording") {
-                            ctxM.clearRect(0, 0, masterCanvas.width, masterCanvas.height);
-                            ctxM.fillStyle = '#1a3a2a'; ctxM.fillRect(0, 0, masterCanvas.width, masterCanvas.height);
-                            const activeSlide = document.querySelector('#media-layer img');
-                            if (activeSlide) ctxM.drawImage(activeSlide, 0, 0, masterCanvas.width, masterCanvas.height);
-                            ctxM.drawImage(canvas, 0, 0);
-                            requestAnimationFrame(drawFrame);
-                        }
-                    }
-                    mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp8,opus' });
-                    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
-                    mediaRecorder.onstop = () => {
-                        const blob = new Blob(recordedChunks, { type: 'video/webm' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a'); a.href = url;
-                        a.download = `Lecture-${new Date().toISOString().slice(0,10)}.webm`; a.click();
-                        audioStream.getTracks().forEach(track => track.stop());
-                        recordBtn.innerText = "🔴 Record"; recordBtn.classList.remove('recording');
-                    };
-                    mediaRecorder.start(); drawFrame();
-                    recordBtn.innerText = "⏹️ Stop"; recordBtn.classList.add('recording');
-                } catch (err) { alert("Recording Layer Error: " + err.message); }
-            } else { mediaRecorder.stop(); }
-        }
     </script>
 </body>
 </html>

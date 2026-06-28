@@ -1,15 +1,23 @@
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
+const socketIo = require('socket.io');
 const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
 
-// टीचर का पिन और स्टूडेंट का शुरुआती पासवर्ड
-const TEACHER_PIN = "1234"; 
-let studentPassword = "student2026"; 
+// आपकी नई रेंडर लाइव लिंक के साथ Socket.io कॉन्फ़िगरेशन
+const io = socketIo(server, {
+    cors: {
+        origin: ["https://av-classroom-ye0v.onrender.com", "http://localhost:3000"],
+        methods: ["GET", "POST"]
+    }
+});
+
+const PORT = process.env.PORT || 3000;
+
+let currentPassword = "123"; // डिफॉल्ट गेटवे पासवर्ड
+let whiteboardHistory = [];   // व्हाइटबोर्ड लाइन्स का बैकअप
 
 app.use(express.static(path.join(__dirname)));
 
@@ -18,35 +26,48 @@ app.get('/', (req, res) => {
 });
 
 io.on('connection', (socket) => {
-    console.log('A user connected');
+    console.log('एक नया यूजर कनेक्ट हुआ:', socket.id);
 
-    // कनेक्ट होते ही स्टूडेंट का मौजूदा पासवर्ड फ्रंटएंड को भेजना
-    socket.emit('init-password', studentPassword);
+    socket.emit('whiteboard-history', whiteboardHistory);
 
-    // टीचर द्वारा पासवर्ड बदलने पर
-    socket.on('update-student-password', (newPass) => {
-        studentPassword = newPass;
-        socket.broadcast.emit('init-password', studentPassword); // सबको नया पासवर्ड अपडेट करना
+    socket.on('verify-password', (inputPass, callback) => {
+        if (inputPass === currentPassword) {
+            callback({ success: true });
+        } else {
+            callback({ success: false, message: "गलत पासवर्ड! कृपया सही पासवर्ड डालें।" });
+        }
     });
 
-    socket.on('draw', (data) => {
-        socket.broadcast.emit('draw', data);
+    socket.on('change-password', (newPass) => {
+        currentPassword = newPass;
+    });
+
+    socket.on('signal', (data) => {
+        socket.broadcast.emit('signal', {
+            sender: socket.id,
+            signal: data.signal
+        });
+    });
+
+    socket.on('chat-message', (data) => {
+        io.emit('chat-message', data);
+    });
+
+    socket.on('draw', (drawData) => {
+        whiteboardHistory.push(drawData);
+        socket.broadcast.emit('draw', drawData);
     });
 
     socket.on('clear-board', () => {
-        socket.broadcast.emit('clear-board');
-    });
-
-    socket.on('chat-message', (msg) => {
-        io.emit('chat-message', msg);
+        whiteboardHistory = [];
+        io.emit('clear-board');
     });
 
     socket.on('disconnect', () => {
-        console.log('User disconnected');
+        console.log('यूजर डिस्कनेक्ट हुआ:', socket.id);
     });
 });
 
-const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`सर्वर पोर्ट ${PORT} पर लाइव है...`);
 });
