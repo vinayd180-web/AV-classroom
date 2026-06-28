@@ -1,25 +1,17 @@
 {
-  "name": "ultimate-classroom",
-  "version": "1.0.0",
-  "description": "Live Smart Classroom Hub",
+  "name": "av-classroom",
+  "version": "2.0.0",
+  "description": "Professional Virtual Classroom with 20-25 student support",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "PORT=3001 node server.js"
   },
   "dependencies": {
-    "express": "^4.22.2",
-    "socket.io": "^4.8.3"
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/vinayd180-web/AV-classroom.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/vinayd180-web/AV-classroom/issues"
-  },
-  "homepage": "https://github.com/vinayd180-web/AV-classroom#readme"
+  "keywords": ["virtual-classroom", "education", "video-conferencing", "whiteboard"],
+  "author": "vinayd180-web",
+  "license": "MIT"
 }
